@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HorizonStatus - System Health</title>
+    <title>HorizonStatus - Live System Health</title>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
@@ -39,6 +39,38 @@
             padding: 40px 20px;
         }
 
+        /* Live Indicator */
+        .live-badge {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 77, 106, 0.15);
+            border: 1px solid rgba(255, 77, 106, 0.4);
+            color: var(--danger);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 100;
+            animation: livePulse 2s infinite;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--danger);
+            border-radius: 50%;
+        }
+
+        @keyframes livePulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
         /* Header */
         .header {
             text-align: center;
@@ -69,6 +101,7 @@
             font-size: 0.85rem;
             font-weight: 600;
             margin-top: 15px;
+            transition: all 0.5s ease;
         }
 
         .status-operational { background: rgba(0, 224, 158, 0.1); color: var(--success); border: 1px solid rgba(0, 224, 158, 0.2); }
@@ -161,6 +194,7 @@
             font-weight: 600;
             padding: 4px 10px;
             border-radius: 6px;
+            transition: all 0.3s;
         }
 
         .badge-operational { background: rgba(0, 224, 158, 0.1); color: var(--success); }
@@ -171,6 +205,7 @@
             font-size: 0.75rem;
             color: var(--text-muted);
             font-family: 'JetBrains Mono', monospace;
+            transition: color 0.3s;
         }
 
         /* Uptime Bar */
@@ -233,7 +268,6 @@
             border-radius: 2px;
         }
 
-        /* Footer */
         .footer {
             text-align: center;
             margin-top: 50px;
@@ -246,29 +280,29 @@
 </head>
 <body>
 
+    <div class="live-badge">
+        <div class="live-dot"></div> LIVE MONITORING
+    </div>
+
     <div class="container">
         <div class="header">
             <div class="logo">
                 <i class="fas fa-signal"></i> HorizonStatus
             </div>
-            <p style="color: var(--text-secondary);">Real-time monitoring of the Horizon Network ecosystem.</p>
+            <p style="color: var(--text-secondary);">Real-time, continuous monitoring of the Horizon Network ecosystem.</p>
             <div class="overall-status status-operational" id="overallStatus">
                 <div class="pulse-dot"></div>
-                All Systems Operational
+                Initializing...
             </div>
         </div>
 
-        <div id="servicesList">
-            <!-- Services will be injected here by JS -->
-        </div>
+        <div id="servicesList"></div>
 
         <div class="uptime-section">
             <div class="uptime-title">
                 <i class="fas fa-chart-bar"></i> Uptime History (90 Days)
             </div>
-            <div class="uptime-grid" id="uptimeGrid">
-                <!-- Uptime bars injected by JS -->
-            </div>
+            <div class="uptime-grid" id="uptimeGrid"></div>
             <div class="uptime-legend">
                 <div class="legend-item"><div class="legend-dot" style="background: var(--success);"></div> Operational</div>
                 <div class="legend-item"><div class="legend-dot" style="background: var(--warning);"></div> Degraded</div>
@@ -277,12 +311,11 @@
         </div>
 
         <div class="footer">
-            &copy; 2024 Horizon Network &bull; Powered by Cloudflare
+            &copy; 2024 Horizon Network &bull; Pinging every 5 seconds
         </div>
     </div>
 
     <script>
-        // Define your network services here
         const SERVICES = [
             { name: 'Horizon OS', url: 'https://horizensearch.com', icon: 'fas fa-desktop', desc: 'horizensearch.com' },
             { name: 'HorizenAI', url: 'https://ai.horizensearch.com', icon: 'fas fa-brain', desc: 'ai.horizensearch.com' },
@@ -294,10 +327,9 @@
         const gridEl = document.getElementById('uptimeGrid');
         const overallEl = document.getElementById('overallStatus');
 
-        // 1. Render Service Cards
         function renderCards() {
             listEl.innerHTML = SERVICES.map((s, i) => `
-                <div class="service-card" id="card-${i}">
+                <div class="service-card">
                     <div class="service-info">
                         <div class="service-icon"><i class="${s.icon}"></i></div>
                         <div class="service-details">
@@ -306,41 +338,41 @@
                         </div>
                     </div>
                     <div class="service-status">
-                        <div class="status-badge badge-checking" id="badge-${i}">Checking...</div>
+                        <div class="status-badge badge-checking" id="badge-${i}">Waiting...</div>
                         <div class="response-time" id="time-${i}">--- ms</div>
                     </div>
                 </div>
             `).join('');
         }
 
-        // 2. Check Status of a single service
         async function checkService(index) {
             const s = SERVICES[index];
             const badge = document.getElementById(`badge-${index}`);
             const timeEl = document.getElementById(`time-${index}`);
             
+            // Flash "Checking..." while it pings
+            badge.className = 'status-badge badge-checking';
+            badge.innerText = 'Pinging...';
+            
             const start = Date.now();
             try {
-                // mode: 'no-cors' ensures we don't get blocked by CORS, but we get a generic opaque response
                 await fetch(s.url, { method: 'HEAD', mode: 'no-cors', cache: 'no-store' });
                 const duration = Date.now() - start;
                 
-                // If it didn't throw a network error, it's online
                 badge.className = 'status-badge badge-operational';
-                badge.innerText = 'Operational';
+                badge.innerText = 'Online';
                 timeEl.innerText = `${duration} ms`;
                 timeEl.style.color = 'var(--success)';
                 return true;
             } catch (err) {
                 badge.className = 'status-badge badge-down';
-                badge.innerText = 'Down';
+                badge.innerText = 'Offline';
                 timeEl.innerText = 'Timeout';
                 timeEl.style.color = 'var(--danger)';
                 return false;
             }
         }
 
-        // 3. Check all and update Overall Status
         async function checkAll() {
             const results = await Promise.all(SERVICES.map((_, i) => checkService(i)));
             
@@ -351,38 +383,43 @@
                 overallEl.innerHTML = '<div class="pulse-dot"></div> All Systems Operational';
             } else {
                 overallEl.className = 'overall-status status-down';
-                overallEl.innerHTML = `<div class="pulse-dot"></div> ${downCount} System(s) Experiencing Issues`;
+                overallEl.innerHTML = `<div class="pulse-dot"></div> ${downCount} System(s) Offline`;
             }
         }
 
-        // 4. Generate Fake 90-day Uptime Graph (Looks cool, based on reality)
         function generateUptimeGraph() {
-            // Cloudflare is 99.9% up, so we make 99% green, 1% yellow, 0% red
             gridEl.innerHTML = '';
             for (let i = 0; i < 90; i++) {
                 const day = document.createElement('div');
                 day.className = 'uptime-day';
-                
                 const rand = Math.random();
-                if (rand > 0.99) day.classList.add('down'); // 1% chance red
-                else if (rand > 0.97) day.classList.add('partial'); // 2% chance yellow
+                if (rand > 0.99) day.classList.add('down');
+                else if (rand > 0.97) day.classList.add('partial');
                 
-                // Tooltip
                 const d = new Date();
                 d.setDate(d.getDate() - (90 - i));
                 day.title = d.toLocaleDateString();
-                
                 gridEl.appendChild(day);
+            }
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // THE CONSTANT CHECK LOOP
+        async function startLiveMonitor() {
+            while (true) {
+                await checkAll();
+                // Wait 5 seconds before pinging again to avoid rate limits/spam
+                await sleep(5000); 
             }
         }
 
         // Initialize
         renderCards();
         generateUptimeGraph();
-        checkAll();
-
-        // Auto-refresh every 60 seconds
-        setInterval(checkAll, 60000);
+        startLiveMonitor(); // Starts the infinite loop
     </script>
 </body>
 </html>
